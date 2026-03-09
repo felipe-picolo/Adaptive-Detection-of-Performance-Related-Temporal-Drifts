@@ -1,0 +1,6 @@
+ambientevev/
+__pycache__/
+*.pyc
+Datasets.rar
+resultados_drift/
+resultados_drift_real/

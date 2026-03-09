@@ -1,0 +1,7 @@
+.\ambientevev\Scripts\Activate.ps1
+
+python adwin_dataset.py
+python adwin_streming.py
+python adwin_real_dataset.py
+
+deactivate
