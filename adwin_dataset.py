@@ -151,37 +151,102 @@ def plot_graph(xes_file, activity_name, real_drifts):
 
     for i, v in enumerate(series):
         adwin.update(v)
+
         if adwin.drift_detected:
             drifts.append(i)
 
+    # =========================================================
     # 5. Plot
-    plt.figure(figsize=(5, 5))
-    plt.plot(series, linewidth=1.2, label="Sojourn Time")
+    # =========================================================
 
-    for drift in drifts:
-        plt.axvline(
+    plt.style.use("seaborn-v0_8-whitegrid")
+
+    fig, ax = plt.subplots(figsize=(12, 4.5))
+
+    # Main series
+    ax.plot(
+        series,
+        linewidth=1.8,
+        color="#1f77b4",
+        alpha=0.95
+    )
+
+    # Detected drifts
+    for i, drift in enumerate(drifts):
+        ax.axvline(
             x=drift,
-            color='red',
-            linestyle='--',
-            label='Drift detected' if drift == drifts[0] else ""
+            color="#d62728",
+            linestyle="--",
+            linewidth=1.8,
+            alpha=0.9,
+            label="Detected drift" if i == 0 else None
         )
-    
-    for drift in real_drifts:
-        plt.axvline(
+
+    # Real drifts
+    for i, drift in enumerate(real_drifts):
+        ax.axvline(
             x=drift,
-            color='green',
-            linestyle='--',
-            label='Real drift' if drift == real_drifts[0] else ""
+            color="#2ca02c",
+            linestyle="--",
+            linewidth=1.8,
+            alpha=0.9,
+            label="Real drift" if i == 0 else None
         )
-    
-    plt.title(f"{base_name} - {activity_name}")
-    plt.xlabel("Trace")
-    plt.ylabel("Sojourn Time (seconds)")
-    plt.grid(True)
-    plt.legend()
+
+    # Labels and title
+    ax.set_title(
+        f"{base_name} • {activity_name}",
+        fontsize=15,
+        fontweight="bold",
+        pad=12
+    )
+
+    ax.set_xlabel(
+        "Trace Index",
+        fontsize=12,
+        fontweight="bold"
+    )
+
+    ax.set_ylabel(
+        "Sojourn Time (s)",
+        fontsize=12,
+        fontweight="bold"
+    )
+
+    # Improve ticks
+    ax.tick_params(axis='both', labelsize=10)
+
+    # Softer grid
+    ax.grid(
+        True,
+        linestyle="--",
+        linewidth=0.5,
+        alpha=0.4
+    )
+
+    # Remove upper/right borders
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Better legend
+    ax.legend(
+        fontsize=10,
+        frameon=True,
+        loc="upper left"
+    )
+
+    # Reduce empty margins
+    ax.margins(x=0)
+
     plt.tight_layout()
-    
-    plt.savefig(f"{OUTPUT_DIR}/{base_name}_{activity_name}.png", dpi=200)
+
+    # High resolution export
+    plt.savefig(
+        f"{OUTPUT_DIR}/{base_name}_{activity_name}.png",
+        dpi=600,
+        bbox_inches="tight"
+    )
+
     plt.close()
 
     return drifts, trace_times

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import time
 from river.drift import ADWIN
 import os
+import random
 
 # Input logs
 LOG_FILES = [
@@ -18,7 +19,7 @@ OUTPUT_DIR = "resultados_drift"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Data treatment and streaming
-def stream(xes_file, activity_name, delay_seconds=0.05):
+def stream(xes_file, activity_name, delay_seconds=0.05, real_delay=False, random_variation=0):
     log = pm4py.read_xes(xes_file)
     log = pm4py.convert_to_event_log(log)
     df = pm4py.convert_to_dataframe(log)
@@ -44,8 +45,12 @@ def stream(xes_file, activity_name, delay_seconds=0.05):
                 duration = (row["time:timestamp"] - start_ts).total_seconds()
                 yield duration
 
-        if delay_seconds > 0:
-            time.sleep(delay_seconds)
+        if real_delay:
+            if duration > 0:
+                time.sleep(duration)
+        else:
+            if delay_seconds > 0:
+                time.sleep(delay_seconds)
 
 # Live plotting with drift detection
 def run_live_plot(stream_iter, title):
@@ -89,12 +94,17 @@ def run_live_plot(stream_iter, title):
 
 
 activity_name = "Machine_Operating"
-live_plot = True
-stream_delay = 0.02  # Delay between events in seconds
+live_plot = True # Turn on live plot
+real_delay = True # Use the actual duration between events as delay in streaming (only if live_plot is True)
+add_random_soujurn_time = True # Adds random delay to simulate variability in sojourn times
+stream_delay = 0.02  # Delay between events in seconds, oly used if real_delay is False and live_plot is True
 
 # Main execution
 for log in LOG_FILES:
     base_name = os.path.basename(log)
+    if add_random_soujurn_time:
+        random_variation = 0.01  # Max random variation in seconds
+        stream_delay += random.uniform(0, random_variation)
     if live_plot:
         drifts = run_live_plot(
             stream(log, activity_name, delay_seconds=stream_delay),
