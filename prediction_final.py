@@ -191,19 +191,17 @@ def random_forest_rul():
 
     plt.figure(figsize=(6,6))
 
-    plt.scatter(y_test,pred,s=8)
-
+    plt.scatter(y_test,pred,s=10,alpha=0.6)
     lim=max(y_test.max(),pred.max())
-
-    plt.plot([0,lim],[0,lim],"r--")
-
-    plt.xlabel("Real RUL")
+    plt.plot([0,lim],[0,lim],"r--",linewidth=2,label="Ideal")
+    plt.title("Random Forest - Actual vs Predicted RUL",fontsize=14)
+    plt.xlabel("Actual RUL")
     plt.ylabel("Predicted RUL")
-
+    plt.grid(alpha=0.3)
+    plt.legend()
     plt.tight_layout()
 
     plt.savefig(f"{RESULT_PATH}/rf_real_vs_pred.png",dpi=300)
-
     plt.close()
 
     # ======================================================
@@ -211,39 +209,31 @@ def random_forest_rul():
     # ======================================================
 
     plt.figure(figsize=(14,5))
-
-    plt.plot(y_test.values,label="Real")
-
-    plt.plot(pred,label="Predicted")
-
-    plt.xlabel("Samples")
-
-    plt.ylabel("RUL")
-
+    plt.plot(y_test.values,label="Actual",linewidth=2)
+    plt.plot(pred,label="Predicted",linewidth=2)
+    plt.title("Random Forest - RUL Prediction",fontsize=14)
+    plt.xlabel("Sample")
+    plt.ylabel("Remaining Useful Life")
+    plt.grid(alpha=0.3)
     plt.legend()
-
     plt.tight_layout()
 
     plt.savefig(f"{RESULT_PATH}/rf_rul_curve.png",dpi=300)
-
     plt.close()
 
     # ======================================================
     # 3 - HISTOGRAMA DOS ERROS
     # ======================================================
 
-    plt.figure(figsize=(6,5))
-
-    plt.hist(y_test-pred,bins=40)
-
+    plt.figure(figsize=(7,5))
+    plt.hist(y_test-pred,bins=40,edgecolor="black")
+    plt.title("Random Forest - Prediction Error Distribution",fontsize=14)
     plt.xlabel("Prediction Error")
-
     plt.ylabel("Frequency")
-
+    plt.grid(alpha=0.3)
     plt.tight_layout()
 
     plt.savefig(f"{RESULT_PATH}/rf_error_histogram.png",dpi=300)
-
     plt.close()
 
     # ======================================================
@@ -258,7 +248,7 @@ def random_forest_rul():
     importance=importance.sort_values(
         by="Importance",
         ascending=False
-    )
+    ).head(20)
 
     importance.to_csv(
         f"{RESULT_PATH}/rf_feature_importance.csv",
@@ -266,22 +256,37 @@ def random_forest_rul():
         index=False
     )
 
-    plt.figure(figsize=(8,10))
-
+    plt.figure(figsize=(9,7))
     plt.barh(
         importance["Feature"],
         importance["Importance"]
     )
-
     plt.gca().invert_yaxis()
-
+    plt.title("Random Forest - Top 20 Feature Importances",fontsize=14)
+    plt.xlabel("Importance")
+    plt.grid(axis="x",alpha=0.3)
     plt.tight_layout()
 
-    plt.savefig(
-        f"{RESULT_PATH}/rf_feature_importance.png",
-        dpi=300
-    )
+    plt.savefig(f"{RESULT_PATH}/rf_feature_importance.png",dpi=300)
+    plt.close()
 
+    # ======================================================
+    # 5 - IMPORTÂNCIA DAS VARIÁVEIS (NORMALIZADA)
+    # ======================================================
+
+    importance["Group"]=importance["Feature"].str.extract(
+        r"(^.*)_t\d+"
+    )
+    grouped=importance.groupby("Group")["Importance"].sum()
+    grouped=grouped.sort_values(ascending=False)
+    plt.figure(figsize=(7,5))
+    grouped.plot.bar()
+    plt.title("Random Forest - Variable Importance by Signal",fontsize=14)
+    plt.ylabel("Total Importance")
+    plt.grid(axis="y",alpha=0.3)
+    plt.tight_layout()  
+
+    plt.savefig(f"{RESULT_PATH}/rf_feature_importance_grouped.png",dpi=300)
     plt.close()
 
     return model
@@ -295,27 +300,17 @@ def xgboost_rul():
     X_train,y_train,X_test,y_test,features=prediction_rul_prepare()
 
     model=XGBRegressor(
-
         n_estimators=500,
-
         max_depth=6,
-
         learning_rate=0.05,
-
         subsample=0.8,
-
         colsample_bytree=0.8,
-
         objective="reg:squarederror",
-
         random_state=42,
-
         n_jobs=-1
-
     )
 
     model.fit(X_train,y_train)
-
     pred=model.predict(X_test)
 
     mae=mean_absolute_error(y_test,pred)
@@ -359,28 +354,17 @@ def xgboost_rul():
     # 1 - REAL X PREVISTO
     # ======================================================
 
-    plt.figure(figsize=(6,6))
-
-    plt.scatter(y_test,pred,s=8)
-
+    plt.scatter(y_test,pred,s=10,alpha=0.6)
     lim=max(y_test.max(),pred.max())
-
-    plt.plot([0,lim],[0,lim],"r--")
-
-    plt.xlabel("Real RUL")
-
+    plt.plot([0,lim],[0,lim],"r--",linewidth=2,label="Ideal")
+    plt.title("XGBoost - Actual vs Predicted RUL",fontsize=14)
+    plt.xlabel("Actual RUL")
     plt.ylabel("Predicted RUL")
-
+    plt.grid(alpha=0.3)
+    plt.legend()
     plt.tight_layout()
 
-    plt.savefig(
-
-        f"{RESULT_PATH}/xgb_real_vs_pred.png",
-
-        dpi=300
-
-    )
-
+    plt.savefig(f"{RESULT_PATH}/xgb_real_vs_pred.png",dpi=300)
     plt.close()
 
     # ======================================================
@@ -388,51 +372,31 @@ def xgboost_rul():
     # ======================================================
 
     plt.figure(figsize=(14,5))
-
-    plt.plot(y_test.values,label="Real")
-
-    plt.plot(pred,label="Predicted")
-
-    plt.xlabel("Samples")
-
-    plt.ylabel("RUL")
-
+    plt.plot(y_test.values,label="Actual",linewidth=2)
+    plt.plot(pred,label="Predicted",linewidth=2)
+    plt.title("XGBoost - RUL Prediction",fontsize=14)
+    plt.xlabel("Sample")
+    plt.ylabel("Remaining Useful Life")
+    plt.grid(alpha=0.3)
     plt.legend()
-
     plt.tight_layout()
 
-    plt.savefig(
-
-        f"{RESULT_PATH}/xgb_rul_curve.png",
-
-        dpi=300
-
-    )
-
+    plt.savefig(f"{RESULT_PATH}/xgb_rul_curve.png",dpi=300)
     plt.close()
 
     # ======================================================
     # 3 - HISTOGRAMA DOS ERROS
     # ======================================================
 
-    plt.figure(figsize=(6,5))
-
-    plt.hist(y_test-pred,bins=40)
-
+    plt.figure(figsize=(7,5))
+    plt.hist(y_test-pred,bins=40,edgecolor="black")
+    plt.title("XGBoost - Prediction Error Distribution",fontsize=14)
     plt.xlabel("Prediction Error")
-
     plt.ylabel("Frequency")
-
+    plt.grid(alpha=0.3)
     plt.tight_layout()
 
-    plt.savefig(
-
-        f"{RESULT_PATH}/xgb_error_histogram.png",
-
-        dpi=300
-
-    )
-
+    plt.savefig(f"{RESULT_PATH}/xgb_error_histogram.png",dpi=300)
     plt.close()
 
     # ======================================================
@@ -440,53 +404,51 @@ def xgboost_rul():
     # ======================================================
 
     importance=pd.DataFrame({
-
         "Feature":features,
-
         "Importance":model.feature_importances_
-
     })
-
     importance=importance.sort_values(
-
         by="Importance",
-
         ascending=False
-
-    )
+    ).head(20)
 
     importance.to_csv(
-
         f"{RESULT_PATH}/xgb_feature_importance.csv",
-
         sep=";",
-
         index=False
-
     )
 
-    plt.figure(figsize=(8,10))
-
+    plt.figure(figsize=(9,7))
     plt.barh(
-
         importance["Feature"],
-
         importance["Importance"]
-
     )
-
     plt.gca().invert_yaxis()
-
+    plt.title("XGBoost - Top 20 Feature Importances",fontsize=14)
+    plt.xlabel("Importance")
+    plt.grid(axis="x",alpha=0.3)
     plt.tight_layout()
 
-    plt.savefig(
+    plt.savefig(f"{RESULT_PATH}/xgb_feature_importance.png",dpi=300)
+    plt.close()
 
-        f"{RESULT_PATH}/xgb_feature_importance.png",
+    # ======================================================
+    # 5 - IMPORTÂNCIA DAS VARIÁVEIS (NORMALIZADA)
+    # ======================================================
 
-        dpi=300
-
+    importance["Group"]=importance["Feature"].str.extract(
+        r"(^.*)_t\d+"
     )
+    grouped=importance.groupby("Group")["Importance"].sum()
+    grouped=grouped.sort_values(ascending=False)
+    plt.figure(figsize=(7,5))
+    grouped.plot.bar()
+    plt.title("XGBoost - Variable Importance by Signal",fontsize=14)
+    plt.ylabel("Total Importance")
+    plt.grid(axis="y",alpha=0.3)
+    plt.tight_layout()  
 
+    plt.savefig(f"{RESULT_PATH}/xgb_feature_importance_grouped.png",dpi=300)
     plt.close()
 
     return model
@@ -564,27 +526,40 @@ def neural_network_rul():
         index=False
     )
 
-    plt.figure(figsize=(6,6))
-    plt.scatter(y_test,pred,s=8)
+    plt.scatter(y_test,pred,s=10,alpha=0.6)
     lim=max(y_test.max(),pred.max())
-    plt.plot([0,lim],[0,lim],"r--")
-    plt.xlabel("Real")
-    plt.ylabel("Predicted")
+    plt.plot([0,lim],[0,lim],"r--",linewidth=2,label="Ideal")
+    plt.title("Neural Network - Actual vs Predicted RUL",fontsize=14)
+    plt.xlabel("Actual RUL")
+    plt.ylabel("Predicted RUL")
+    plt.grid(alpha=0.3)
+    plt.legend()
     plt.tight_layout()
+    
     plt.savefig(f"{RESULT_PATH}/nn_real_vs_pred.png",dpi=300)
     plt.close()
 
     plt.figure(figsize=(14,5))
-    plt.plot(y_test.values,label="Real")
-    plt.plot(pred,label="Predicted")
+    plt.plot(y_test.values,label="Actual",linewidth=2)
+    plt.plot(pred,label="Predicted",linewidth=2)
+    plt.title("Neural Network - RUL Prediction",fontsize=14)
+    plt.xlabel("Sample")
+    plt.ylabel("Remaining Useful Life")
+    plt.grid(alpha=0.3)
     plt.legend()
     plt.tight_layout()
+
     plt.savefig(f"{RESULT_PATH}/nn_rul_curve.png",dpi=300)
     plt.close()
 
-    plt.figure(figsize=(6,5))
-    plt.hist(y_test-pred,bins=40)
+    plt.figure(figsize=(7,5))
+    plt.hist(y_test-pred,bins=40,edgecolor="black")
+    plt.title("Neural Network - Prediction Error Distribution",fontsize=14)
+    plt.xlabel("Prediction Error")
+    plt.ylabel("Frequency")
+    plt.grid(alpha=0.3)
     plt.tight_layout()
+
     plt.savefig(f"{RESULT_PATH}/nn_error_histogram.png",dpi=300)
     plt.close()
 
@@ -595,6 +570,7 @@ def neural_network_rul():
     plt.ylabel("Loss")
     plt.legend()
     plt.tight_layout()
+
     plt.savefig(f"{RESULT_PATH}/nn_training.png",dpi=300)
     plt.close()
 
