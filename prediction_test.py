@@ -15,10 +15,11 @@ import os
 
 # Input logs
 LOG_FILES = [
-    "dataset_manufacturing/DR_MS_20.xes",
-    "dataset_manufacturing/DR_MS_ST_20.xes"
+    "dataset_manufacturing/DR_MS_04.xes",
+    "dataset_manufacturing/DR_MS_ST_25.xes"
 ]
 
+WINDOW_SIZE = 20
 # Configurations
 OUTPUT_DIR = "prediction"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -237,136 +238,94 @@ def adwin(log_file, output_dir, matrix):
     matrix.to_csv(os.path.join(output_log_path, f"{os.path.basename(log_file).replace('.xes', '')}_matrix.csv"), index=False, sep=";")
     
 def load_dataset(file_list):
-
     dfs = []
-
     for file in file_list:
-
         df = pd.read_csv(file, sep=";")
-
-        # --------------------------------------------------
-        # FEATURES
-        # --------------------------------------------------
-
         for col in [
             "Machine_Operating",
             "Raw_Material_Loading",
             "Short_Downtime"
         ]:
-
             df[f"{col}_MA5"] = (
                 df[col]
                 .rolling(5, min_periods=1)
                 .mean()
             )
-
             df[f"{col}_MA10"] = (
                 df[col]
                 .rolling(10, min_periods=1)
                 .mean()
             )
-
             df[f"{col}_STD5"] = (
                 df[col]
                 .rolling(5, min_periods=1)
                 .std()
                 .fillna(0)
             )
-
             df[f"{col}_STD10"] = (
                 df[col]
                 .rolling(10, min_periods=1)
                 .std()
                 .fillna(0)
             )
-
             df[f"{col}_MAX5"] = (
                 df[col]
                 .rolling(5, min_periods=1)
                 .max()
             )
-
             df[f"{col}_MIN5"] = (
                 df[col]
                 .rolling(5, min_periods=1)
                 .min()
             )
-
             df[f"{col}_RANGE5"] = (
                 df[f"{col}_MAX5"]
                 -
                 df[f"{col}_MIN5"]
             )
-
             df[f"{col}_DIFF1"] = (
                 df[col]
                 .diff()
                 .fillna(0)
             )
-
             df[f"{col}_DIFF5"] = (
                 df[col]
                 .diff(5)
                 .fillna(0)
             )
 
-        # --------------------------------------------------
-        # TARGET
-        # --------------------------------------------------
-
         df["Target"] = 0
-
         failure = df[df["Equipment_Failure"] == 1]
-
         if len(failure):
-
             failure_trace = failure.iloc[0]["Trace"]
-
             df.loc[
                 (
                     (failure_trace - df["Trace"] > 0)
                     &
-                    (failure_trace - df["Trace"] <= 20)
+                    (failure_trace - df["Trace"] <= WINDOW_SIZE)
                 ),
                 "Target"
             ] = 1
-
         dfs.append(df)
 
     return pd.concat(dfs, ignore_index=True)
 
-
-# ==========================================================
-# RANDOM FOREST
-# ==========================================================
-
 def random_forest():
-
     dr_ms = sorted(glob("prediction/matrix_log/DR_MS_[0-9][0-9]_matrix.csv"))
-
     dr_ms_st = sorted(glob("prediction/matrix_log/DR_MS_ST_[0-9][0-9]_matrix.csv"))
 
     dr_train, dr_temp = train_test_split(
         dr_ms,
         test_size=0.30,
-        random_state=42,
-        shuffle=True
     )
-
     dr_val, dr_test = train_test_split(
         dr_temp,
         test_size=1/3,
-        random_state=42,
-        shuffle=True
     )
-
     st_train, st_temp = train_test_split(
         dr_ms_st,
         test_size=0.30,
-        random_state=42,
-        shuffle=True
     )
-
     st_val, st_test = train_test_split(
         st_temp,
         test_size=1/3,
@@ -378,16 +337,11 @@ def random_forest():
     val_files = dr_val + st_val
     test_files = dr_test + st_test
 
-    random.shuffle(train_files)
-    random.shuffle(val_files)
-    random.shuffle(test_files)
-
     train = load_dataset(train_files)
     val = load_dataset(val_files)
     test = load_dataset(test_files)
 
     features = [
-
         "Machine_Operating",
         "Machine_Operating_MA5",
         "Machine_Operating_MA10",
@@ -421,7 +375,8 @@ def random_forest():
         "Short_Downtime_DIFF1",
         "Short_Downtime_DIFF5",
 
-        "DriftD"
+        "DriftD",
+        "DriftR"
     ]
 
     X_train = train[features]
@@ -434,81 +389,47 @@ def random_forest():
     y_test = test["Target"]
 
     model = RandomForestClassifier(
-
         n_estimators=500,
-
         max_depth=None,
-
         min_samples_leaf=2,
-
         class_weight="balanced_subsample",
-
         random_state=42,
-
         n_jobs=-1
-
     )
 
     model.fit(X_train, y_train)
 
-    print("=" * 60)
     print("VALIDAÇÃO")
-    print("=" * 60)
-
     pred = model.predict(X_val)
-
     print(classification_report(y_val, pred))
-
     print(confusion_matrix(y_val, pred))
-
     print()
-
-    print("=" * 60)
     print("TESTE")
-    print("=" * 60)
 
     pred = model.predict(X_test)
 
     print(classification_report(y_test, pred))
-
     print(confusion_matrix(y_test, pred))
-
     print()
 
-    # ------------------------------------------------------
-    # IMPORTÂNCIA DAS VARIÁVEIS
-    # ------------------------------------------------------
-
     importance = pd.DataFrame({
-
         "Feature": features,
-
         "Importance": model.feature_importances_
-
     })
-
     importance = importance.sort_values(
         by="Importance",
         ascending=False
     )
 
-    print("=" * 60)
     print("IMPORTÂNCIA DAS VARIÁVEIS")
-    print("=" * 60)
-
     print(importance)
-
-
-
-def prevision_test():
-    random_forest()
 
 
 
 if __name__ == "__main__":
     task = "0"
-    while task in ["0","1", "2", "3", "4", "5"]:
-        task = input("select task: 1 - graph test, 2 - matrix test, 3 - ADWIN, 4 - Create log files, 5 - Prevision test, 9 - Exit: ")
+    while task in ["0","1", "2", "3", "4", "5", "6"]:
+        task = input("select task: 1 - graph test, 2 - matrix test, 3 - ADWIN, 4 - Create log files, 5 - Prevision test, 6 - RUL, 9 - Exit: ")
         if task == "1":
             output = OUTPUT_DIR+"/graph_test"
             os.makedirs(output, exist_ok=True)
@@ -549,4 +470,4 @@ if __name__ == "__main__":
                 adwin(log_file, output, matrix)
         
         if task == "5":
-            prevision_test()
+            random_forest()

@@ -3,20 +3,28 @@ import random
 import os
 from sklearn.model_selection import train_test_split
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from glob import glob
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score
-)
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
+try:
+    from tensorflow.keras import Input
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import Dense, Dropout
+    from tensorflow.keras.callbacks import EarlyStopping
+except Exception:
+    # Fallback to standalone keras if tensorflow.keras is unavailable
+    from keras.models import Sequential
+    from keras.layers import Dense, Dropout
+    from keras.callbacks import EarlyStopping
 
 
-RANDOM_STATE=42
-WINDOW=10
+WINDOW=30
 RESULT_PATH="prediction/prediction_rul"
 os.makedirs(RESULT_PATH,exist_ok=True)
 
@@ -52,22 +60,25 @@ def create_rul(df):
 
 def create_window(df):
 
-    cols=[
+    cols = [
+        "Trace",
         "Machine_Operating",
         "Raw_Material_Loading",
         "Short_Downtime",
         "DriftD"
     ]
 
-    out=pd.DataFrame()
+    data = {}
 
     for col in cols:
         for i in range(WINDOW):
-            out[f"{col}_t{i}"]=df[col].shift(i)
+            data[f"{col}_t{i}"] = df[col].shift(i)
 
-    out["RUL"]=df["RUL"]
+    data["RUL"] = df["RUL"]
 
-    out=out.dropna().reset_index(drop=True)
+    out = pd.DataFrame(data)
+
+    out = out.iloc[WINDOW-1:].reset_index(drop=True)
 
     return out
 
@@ -91,14 +102,14 @@ def split_files():
     dr_train,dr_test=train_test_split(
         dr_ms,
         test_size=0.30,
-        random_state=RANDOM_STATE,
+        random_state=42,
         shuffle=True
     )
 
     st_train,st_test=train_test_split(
         dr_ms_st,
         test_size=0.30,
-        random_state=RANDOM_STATE,
+        random_state=42,
         shuffle=True
     )
 
@@ -130,11 +141,6 @@ def prediction_rul_prepare():
     print(f"Nº Features: {len(features)}")
 
     return X_train,y_train,X_test,y_test,features
-
-# ==========================================================
-# PART 2 - RANDOM FOREST REGRESSOR
-# ==========================================================
-
 
 
 def random_forest_rul():
@@ -485,6 +491,115 @@ def xgboost_rul():
 
     return model
 
+
+def neural_network_rul():
+
+    X_train,y_train,X_test,y_test,features=prediction_rul_prepare()
+
+    scaler=StandardScaler()
+
+    X_train=scaler.fit_transform(X_train)
+    X_test=scaler.transform(X_test)
+
+    model = Sequential([
+        Input(shape=(X_train.shape[1],)),
+        Dense(128, activation="relu"),
+        Dropout(0.20),
+        Dense(64, activation="relu"),
+        Dropout(0.20),
+        Dense(32, activation="relu"),
+        Dense(1)
+    ])
+    
+    model.compile(
+        optimizer="adam",
+        loss="mse",
+        metrics=["mae"]
+    )
+
+    early_stop=EarlyStopping(
+        monitor="val_loss",
+        patience=20,
+        restore_best_weights=True
+    )
+
+    history=model.fit(
+
+        X_train,
+
+        y_train,
+
+        validation_split=0.20,
+
+        epochs=300,
+
+        batch_size=64,
+
+        callbacks=[early_stop],
+
+        verbose=1
+
+    )
+
+    pred=model.predict(X_test).flatten()
+
+    mae=mean_absolute_error(y_test,pred)
+    rmse=np.sqrt(mean_squared_error(y_test,pred))
+    r2=r2_score(y_test,pred)
+
+    print("="*60)
+    print("NEURAL NETWORK")
+    print("="*60)
+    print(f"MAE : {mae:.4f}")
+    print(f"RMSE: {rmse:.4f}")
+    print(f"R²  : {r2:.4f}")
+
+    pd.DataFrame({
+        "Real":y_test,
+        "Predicted":pred,
+        "Error":y_test-pred
+    }).to_csv(
+        f"{RESULT_PATH}/nn_predictions.csv",
+        sep=";",
+        index=False
+    )
+
+    plt.figure(figsize=(6,6))
+    plt.scatter(y_test,pred,s=8)
+    lim=max(y_test.max(),pred.max())
+    plt.plot([0,lim],[0,lim],"r--")
+    plt.xlabel("Real")
+    plt.ylabel("Predicted")
+    plt.tight_layout()
+    plt.savefig(f"{RESULT_PATH}/nn_real_vs_pred.png",dpi=300)
+    plt.close()
+
+    plt.figure(figsize=(14,5))
+    plt.plot(y_test.values,label="Real")
+    plt.plot(pred,label="Predicted")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"{RESULT_PATH}/nn_rul_curve.png",dpi=300)
+    plt.close()
+
+    plt.figure(figsize=(6,5))
+    plt.hist(y_test-pred,bins=40)
+    plt.tight_layout()
+    plt.savefig(f"{RESULT_PATH}/nn_error_histogram.png",dpi=300)
+    plt.close()
+
+    plt.figure(figsize=(8,5))
+    plt.plot(history.history["loss"],label="Train")
+    plt.plot(history.history["val_loss"],label="Validation")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"{RESULT_PATH}/nn_training.png",dpi=300)
+    plt.close()
+
+    return model
+
 # ==========================================================
 # MAIN
 # ==========================================================
@@ -500,6 +615,9 @@ if __name__ == "__main__":
 
     print("\nRunning XGBoost...\n")
     xgb_model = xgboost_rul()
+
+    print("\nRunning Neural Network...\n")
+    nn_model = neural_network_rul()
 
     print("\nFinished!")
     print(f"Results saved in: {RESULT_PATH}")
